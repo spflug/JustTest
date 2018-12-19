@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 
 #region don't touch it, don't ásk, don't look at it.... it just works
 
@@ -32,157 +34,70 @@ namespace Kacke
 
 namespace JustTest
 {
-    public class Int
+    public delegate bool TryParse<T>(string text, out T t);
+
+    public abstract class Maybe<T>
     {
-        public Int()
+        public Maybe<TResult> Bind<TResult>(Func<T, Maybe<TResult>> f)
         {
-            var col1 = Enumerable.Range(0, 100);
-            var col2 = Enumerable.Range(0, 100);
-
-            var t =new List<(int, int)>();
-
-            var tl = col1.Join(col2, i => i, i => i * i, (i1, i2) => (i1, i2)).ToList();
-
-            foreach (var i1 in col1)
+            switch (this)
             {
-                foreach (var i2 in col2)
-                {
-                    if (i2 == i1 * i1) t.Add((i1, i2));
-                }
-            }
-
-            t.ForEach(tx => Console.WriteLine($"{tx}"));
-        }
-    }
-
-    public class Bool
-    {
-
-    }
-
-    #region MyRegion
-
-    interface IFeature
-    {
-
-    }
-
-    abstract class Shape
-    {
-        protected Shape(string name)
-        {
-            Name = name;
-        }
-
-        public string Name { get; }
-
-        public abstract double Area();
-    }
-
-    class Rectangle : Shape
-    {
-        public Rectangle(string name, double a, double b) : base(name)
-        {
-            A = a;
-            B = b;
-        }
-
-        public Rectangle(double a, double b) : this(nameof(Rectangle), a, b)
-        {
-        }
-
-        public double A { get; }
-        public double B { get; }
-        public override double Area()
-        {
-            return A * B;
-        }
-    }
-
-    class Square : Rectangle
-    {
-        public Square(double a) : base(nameof(Square), a, a)
-        {
-        }
-    }
-
-    class Triangle : Shape
-    {
-        public Triangle(double @base, double heigth) : base(nameof(Triangle))
-        {
-            Base = @base;
-            Heigth = heigth;
-        }
-
-        public double Base { get; }
-        public double Heigth { get; }
-
-        public override double Area()
-        {
-            return .5 * Base * Heigth;
-        }
-    }
-
-    class KrasseKlasse
-    {
-        private KrasseKlasse()
-        {
-        }
-
-        public IEnumerable<IFeature> Features { get; set; }
-
-        public class Builder
-        {
-            private List<IFeature> features = new List<IFeature>();
-
-            public Builder AddFeeture(IFeature feature)
-            {
-                this.features.Add(feature);
-                return this;
-            }
-
-            public KrasseKlasse Build()
-            {
-                return new KrasseKlasse { Features = this.features };
+                case Just<T> just: return f(just.Value);
+                default: return new Nothing<TResult>();
             }
         }
+
+
+
+        public static implicit operator Maybe<T>(T value)
+            => value == null
+                ? (Maybe<T>) new Nothing<T>()
+                : new Just<T>(value);
     }
 
-    class Point
+    public sealed class Just<T> : Maybe<T>
     {
-        public Point(double x, double y)
+        public Just(T value)
         {
-            X = x;
-            Y = y;
+            Value = value;
         }
 
-        public double X { get; set; }
-        public double Y { get; set; }
+        public T Value { get; }
 
-        public double DistanceFromOrigin()
-        {
-            var dist = Math.Sqrt(Math.Pow(X, 2) + Math.Pow(Y, 2));
-            return dist;
-        }
-
-        public override string ToString() => $"({X}|{Y})";
+        public static implicit operator T(Just<T> maybe) => maybe.Value;
     }
 
-    #endregion
+    public sealed class Nothing<T> : Maybe<T>
+    {
+    }
 
     static class Program
     {
         private const double Epsilon = 0.00000001D;
-
-        static void CleanUp(Kacke.Kacke kacke)
+        private static readonly Dictionary<string, string> config = new Dictionary<string, string>
         {
+            ["1"] = "1",
+            ["2"] = "two"
+        };
 
-        }
+        private static Func<string, Maybe<T>> TryParse<T>(TryParse<T> f)
+            => text
+                => f(text, out var t)
+                    ? (Maybe<T>) new Just<T>(t)
+                    : new Nothing<T>();
+
+        static Maybe<string> ReadConfig(string key) => TryParse(new TryParse<string>(config.TryGetValue))(key);
+            //=> config.TryGetValue(key, out var value)
+            //    ? (Maybe<string>)new Just<string>(value)
+            //    : new Nothing<string>();
+
+        private static Maybe<int> ToInt(string text) => TryParse(new TryParse<int>(int.TryParse))(text);
 
         static void Main(string[] args)
         {
-            var k1 = new Kacke.Kacke();
-            var k2 = new AuchKacke.Kacke();
+            var just = ReadConfig("1").Bind(ToInt);
+            var nothing1 = ReadConfig("2").Bind(ToInt);
+            var nothing2 = ReadConfig("---").Bind(ToInt);
 
             int big = int.MaxValue;
             int bigger = big + 1;
@@ -202,11 +117,6 @@ namespace JustTest
                 }
             }
 
-            var point = new Point(0, 0);
-
-            var dist1 = point.DistanceFromOrigin();
-            var dist2 = point.DistanceFromOrigin();
-
             const string text = "Point";
 
             int a = 10;
@@ -220,41 +130,27 @@ namespace JustTest
             Print(ref text1);
             Console.WriteLine(text1 == text);
 
-            Console.WriteLine(Math.Abs(dist1 - dist2) < Epsilon);
-            Console.ReadKey();
-            var builder = new KrasseKlasse.Builder()
-                .AddFeeture(default(IFeature))
-                .AddFeeture(default(IFeature))
-                .AddFeeture(default(IFeature))
-                .AddFeeture(default(IFeature))
-                .AddFeeture(default(IFeature))
-                .AddFeeture(default(IFeature))
-                .AddFeeture(default(IFeature));
-
-            var kk = builder.Build();
-
             WithExpression(s => s.Length, "foo");
             WithLambda(s => s.Length, "foo");
 
             Console.ReadKey();
         }
 
-        static Shape Scale(this Shape shape, double factor)
+        static void CleanUp(Kacke.Kacke kacke)
         {
-            var c = new ReadOnlyObservableCollection<int>(new ObservableCollection<int>(new[] {0, 1}));
 
-            switch (shape)
-            {
-                case Square sqr: return new Square(sqr.A * factor);
-                case Rectangle rct: return new Rectangle(rct.A * factor, rct.B * factor);
-                case Triangle tr: return new Triangle(tr.Base * factor, tr.Heigth * factor);
-                default: throw new NotSupportedException("unsupported shape!");
-            }
         }
 
-        static Point TranslateByX(Point p, double dist)
+        static void MongolianVowel()
         {
-            return new Point(p.X + dist, p.Y);
+            const string emptyOrNot = "᠎";
+            var format = "\"" + emptyOrNot + "\" => .Length = " + Length(emptyOrNot) + " or is it " +
+                         ULength(emptyOrNot) + "?";
+            Console.WriteLine(format);
+            Console.ReadKey();
+
+            int Length(string t) => t.Length;
+            int ULength(string t) => Encoding.Default.GetByteCount(t);
         }
 
         static void Swap(ref int a, ref int b)
